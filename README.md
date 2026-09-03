@@ -1,3 +1,32 @@
+# Submission — Amrin Lamisa
+
+## Required Software
+- Node.js and npm
+- MongoDB Community Edition (installed via Homebrew: brew install mongodb-community)
+
+## Required Environment Variables
+Defined in backend/.env (already committed): MONGODB_URI and PORT.
+
+## Install Dependencies
+cd backend && npm install
+cd ../frontend && npm install
+
+## Start MongoDB Community Edition Locally
+brew services start mongodb-community
+
+## Production Build
+cd frontend
+npm run build
+
+## Start the Server
+cd backend
+node server.js
+
+## Open the Application
+http://localhost:3000
+
+---
+
 # CIS 3339 Homework 1: Vue 3 and MongoDB Migration
 
 ## Assignment Overview

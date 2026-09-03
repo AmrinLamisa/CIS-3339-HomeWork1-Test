@@ -1,103 +1,182 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const fs = require('fs');
+const mongoose = require('mongoose');
 const path = require('path');
+
+const Student = require('./models/Student');
+const Course = require('./models/Course');
+const Enrollment = require('./models/Enrollment');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const DATA_FILE = path.join(__dirname, 'students.json');
+// ---------- MongoDB connection ----------
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch((err) => console.error('MongoDB connection error:', err));
 
-async function loadStudents() {
+// ================= STUDENTS =================
+
+// Get all students
+app.get('/api/students', async (req, res) => {
     try {
-        const data = await fs.promises.readFile(DATA_FILE, 'utf8');
-        return JSON.parse(data);
+        const students = await Student.find();
+        res.json(students);
     } catch (error) {
-        if (error.code === 'ENOENT') {
-            return [];
-        }
-        console.error('Error reading students file:', error);
-        return [];
+        res.status(500).json({ error: 'Internal server error' });
     }
-}
+});
 
-async function saveStudents(students) {
+// Search for a student by name
+app.get('/api/students/search', async (req, res) => {
     try {
-        await fs.promises.writeFile(DATA_FILE, JSON.stringify(students, null, 2), 'utf8');
-    } catch (error) {
-        console.error('Error writing students file:', error);
-        throw error;
-    }
-}
-
-// Endpoint to search for a student by name
-app.post('/find-student', async (req, res) => {
-    try {
-        const { name } = req.body;
+        const { name } = req.query;
         if (!name) {
-            return res.status(400).send({ error: 'Student name is required' });
+            return res.status(400).json({ error: 'Name query parameter is required' });
         }
-
-        const students = await loadStudents();
-        const student = students.find((item) => item.name === name);
+        const student = await Student.findOne({ name: new RegExp(`^${name}$`, 'i') });
         if (!student) {
-            return res.status(404).send({ error: 'Student not found' });
+            return res.status(404).json({ error: 'Student not found' });
         }
-
-        res.send(student);
+        res.json(student);
     } catch (error) {
-        console.error('Error finding student:', error);
-        res.status(500).send({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// Endpoint to save a student
-app.post('/add-student', async (req, res) => {
+// Add a student
+app.post('/api/students', async (req, res) => {
     try {
-        const { name, id, phone, zip } = req.body;
-        if (!name || !id || !phone || !zip) {
-            return res.status(400).send({ error: 'All fields (name, id, phone, zip) are required' });
+        const { name, studentId, phone, zip } = req.body;
+        if (!name || !studentId || !phone || !zip) {
+            return res.status(400).json({ error: 'All fields (name, studentId, phone, zip) are required' });
         }
-
-        const students = await loadStudents();
-        const newStudent = { name, id, phone, zip };
-        students.push(newStudent);
-        await saveStudents(students);
-
-        res.status(201).send({ message: 'Student added successfully', student: newStudent });
+        const existing = await Student.findOne({ studentId });
+        if (existing) {
+            return res.status(409).json({ error: 'A student with this ID already exists' });
+        }
+        const student = new Student({ name, studentId, phone, zip });
+        await student.save();
+        res.status(201).json(student);
     } catch (error) {
-        console.error('Error adding student:', error);
-        res.status(500).send({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// Endpoint to delete a student by name
-app.post('/delete-student', async (req, res) => {
+// Delete a student by studentId (also removes their enrollments)
+app.delete('/api/students/:studentId', async (req, res) => {
     try {
-        const { name } = req.body;
-        if (!name) {
-            return res.status(400).send({ error: 'Student name is required' });
+        const student = await Student.findOneAndDelete({ studentId: req.params.studentId });
+        if (!student) {
+            return res.status(404).json({ error: 'Student not found' });
         }
-
-        const students = await loadStudents();
-        const index = students.findIndex((item) => item.name === name);
-        if (index === -1) {
-            return res.status(404).send({ error: 'Student not found' });
-        }
-
-        const deletedStudent = students.splice(index, 1)[0];
-        await saveStudents(students);
-
-        res.send({ message: 'Student deleted successfully', student: deletedStudent });
+        await Enrollment.deleteMany({ studentId: req.params.studentId });
+        res.json({ message: 'Student deleted successfully', student });
     } catch (error) {
-        console.error('Error deleting student:', error);
-        res.status(500).send({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
 
-// Start the server
-const PORT = 3000;
+// ================= COURSES =================
+
+// Get all courses
+app.get('/api/courses', async (req, res) => {
+    try {
+        const courses = await Course.find();
+        res.json(courses);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Add a course
+app.post('/api/courses', async (req, res) => {
+    try {
+        const { courseId, courseName } = req.body;
+        if (!courseId || !courseName) {
+            return res.status(400).json({ error: 'Both courseId and courseName are required' });
+        }
+        const existing = await Course.findOne({ courseId });
+        if (existing) {
+            return res.status(409).json({ error: 'A course with this ID already exists' });
+        }
+        const course = new Course({ courseId, courseName });
+        await course.save();
+        res.status(201).json(course);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Delete a course by courseId (also removes its enrollments)
+app.delete('/api/courses/:courseId', async (req, res) => {
+    try {
+        const course = await Course.findOneAndDelete({ courseId: req.params.courseId });
+        if (!course) {
+            return res.status(404).json({ error: 'Course not found' });
+        }
+        await Enrollment.deleteMany({ courseId: req.params.courseId });
+        res.json({ message: 'Course deleted successfully', course });
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ================= ENROLLMENTS =================
+
+// Enroll a student in a course
+app.post('/api/enrollments', async (req, res) => {
+    try {
+        const { studentId, courseId } = req.body;
+        if (!studentId || !courseId) {
+            return res.status(400).json({ error: 'Both studentId and courseId are required' });
+        }
+        const student = await Student.findOne({ studentId });
+        if (!student) {
+            return res.status(404).json({ error: 'Student does not exist' });
+        }
+        const course = await Course.findOne({ courseId });
+        if (!course) {
+            return res.status(404).json({ error: 'Course does not exist' });
+        }
+        const existing = await Enrollment.findOne({ studentId, courseId });
+        if (existing) {
+            return res.status(409).json({ error: 'This student is already enrolled in this course' });
+        }
+        const enrollment = new Enrollment({ studentId, courseId });
+        await enrollment.save();
+        res.status(201).json(enrollment);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get all students enrolled in a course
+app.get('/api/enrollments', async (req, res) => {
+    try {
+        const { courseId } = req.query;
+        if (!courseId) {
+            return res.status(400).json({ error: 'courseId query parameter is required' });
+        }
+        const enrollments = await Enrollment.find({ courseId });
+        const studentIds = enrollments.map((e) => e.studentId);
+        const students = await Student.find({ studentId: { $in: studentIds } });
+        res.json(students);
+    } catch (error) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// ================= SERVE PRODUCTION BUILD =================
+app.use(express.static(path.join(__dirname, 'public')));
+app.get(/(.*)/, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// ---------- Start server ----------
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
