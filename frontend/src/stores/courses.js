@@ -21,27 +21,27 @@ export const useCourseStore = defineStore('courses', () => {
     }
 
     async function addCourse(course) {
-        error.value = null
+        // Check locally first so a duplicate never reaches the server
+        if (courses.value.some((c) => c.courseId === course.courseId)) {
+            return { success: false, error: `A course with ID ${course.courseId} already exists` }
+        }
         try {
             const res = await api.post('/courses', course)
             courses.value.push(res.data)
             return { success: true }
         } catch (err) {
             const message = err.response?.data?.error || 'Failed to add course'
-            error.value = message
             return { success: false, error: message }
         }
     }
 
     async function deleteCourse(courseId) {
-        error.value = null
         try {
-            await api.delete(`/courses/${courseId}`)
+            await api.delete(`/courses/${encodeURIComponent(courseId)}`)
             courses.value = courses.value.filter((c) => c.courseId !== courseId)
             return { success: true }
         } catch (err) {
             const message = err.response?.data?.error || 'Failed to delete course'
-            error.value = message
             return { success: false, error: message }
         }
     }

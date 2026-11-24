@@ -1,5 +1,8 @@
-# Vue 3 + Vite
+# Frontend (Vue 3 + Vite)
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+Vue 3 (Composition API) frontend for the Student Management System, using Vue Router and Pinia.
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+- `npm run build` compiles the production build into `../backend/public`, which the Express server serves at http://localhost:3000.
+- `npm run dev` starts the Vite dev server (API calls to `/api` are proxied to http://localhost:3000).
+
+See the main README in the repository root for full setup instructions.

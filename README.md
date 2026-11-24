@@ -1,29 +1,52 @@
 # Submission — Amrin Lamisa
 
+Student Management System built with Vue 3 (Composition API, Vue Router, Pinia), Express, and MongoDB (Mongoose).
+
 ## Required Software
-- Node.js and npm
-- MongoDB Community Edition (installed via Homebrew: brew install mongodb-community)
+- Node.js (v20 or newer) and npm
+- MongoDB Community Edition running locally (macOS: `brew tap mongodb/brew && brew install mongodb-community`)
 
 ## Required Environment Variables
-Defined in backend/.env (already committed): MONGODB_URI and PORT.
+Defined in `backend/.env` (committed to Git, no secrets):
 
-## Install Dependencies
-cd backend && npm install
-cd ../frontend && npm install
+```
+MONGODB_URI=mongodb://127.0.0.1:27017/cis3339_homework1
+PORT=3000
+```
+
+The database, collections, and unique indexes are created automatically on startup. No seed, migration, or setup command is needed.
 
 ## Start MongoDB Community Edition Locally
+```bash
 brew services start mongodb-community
+```
 
-## Production Build
-cd frontend
+## Install Dependencies (run from the repository root)
+```bash
+npm install
+```
+This installs the root, `backend/`, and `frontend/` dependencies.
+
+## Production Build (run from the repository root)
+```bash
 npm run build
+```
+This builds the Vue app into `backend/public/`, which Express serves.
 
-## Start the Server
-cd backend
-node server.js
+## Start the Server (run from the repository root)
+```bash
+npm start
+```
 
 ## Open the Application
 http://localhost:3000
+
+## Project Structure
+- `backend/server.js` — Express REST API and static file server
+- `backend/models/` — Mongoose schemas for Student, Course, Enrollment
+- `frontend/src/views/` — Students, Courses, and Enrollments pages (Vue Router)
+- `frontend/src/components/` — reusable components (StudentTable, CourseTable, StatusMessage)
+- `frontend/src/stores/` — Pinia stores for students, courses, and enrollments
 
 ---
 

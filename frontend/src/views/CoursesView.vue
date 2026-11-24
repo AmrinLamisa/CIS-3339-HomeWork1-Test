@@ -1,10 +1,14 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { useCourseStore } from '../stores/courses'
+import StatusMessage from '../components/StatusMessage.vue'
+import CourseTable from '../components/CourseTable.vue'
 
 const store = useCourseStore()
 const newCourse = reactive({ courseId: '', courseName: '' })
 const addStatus = ref(null)
+const adding = ref(false)
+const listStatus = ref(null)
 
 onMounted(() => {
   store.fetchCourses()
@@ -12,9 +16,19 @@ onMounted(() => {
 
 async function handleAdd() {
   addStatus.value = null
-  const result = await store.addCourse({ ...newCourse })
+  const course = {
+    courseId: newCourse.courseId.trim(),
+    courseName: newCourse.courseName.trim()
+  }
+  if (!course.courseId || !course.courseName) {
+    addStatus.value = { type: 'error', message: 'Please fill in both course ID and course name.' }
+    return
+  }
+  adding.value = true
+  const result = await store.addCourse(course)
+  adding.value = false
   if (result.success) {
-    addStatus.value = { type: 'success', message: 'Course added successfully.' }
+    addStatus.value = { type: 'success', message: `Course ${course.courseId} added successfully.` }
     newCourse.courseId = ''
     newCourse.courseName = ''
   } else {
@@ -24,42 +38,37 @@ async function handleAdd() {
 
 async function handleDelete(courseId) {
   if (!confirm(`Delete course ${courseId}? This will also remove its enrollments.`)) return
-  await store.deleteCourse(courseId)
+  listStatus.value = null
+  const result = await store.deleteCourse(courseId)
+  if (result.success) {
+    listStatus.value = { type: 'success', message: `Course ${courseId} and its enrollments deleted.` }
+  } else {
+    listStatus.value = { type: 'error', message: result.error }
+  }
 }
 </script>
 
 <template>
   <section>
-    <h1>Courses</h1>
+    <h2>Courses</h2>
 
-    <h2>Add a Course</h2>
-    <form @submit.prevent="handleAdd">
+    <h3>Add a Course</h3>
+    <form @submit.prevent="handleAdd" novalidate>
       <label for="courseId">Course ID</label>
-      <input id="courseId" v-model="newCourse.courseId" type="text" required />
+      <input id="courseId" v-model="newCourse.courseId" type="text" placeholder="e.g. CIS 3339" required />
 
       <label for="courseName">Course Name</label>
       <input id="courseName" v-model="newCourse.courseName" type="text" required />
 
-      <button type="submit">Add Course</button>
+      <button type="submit" :disabled="adding">{{ adding ? 'Adding...' : 'Add Course' }}</button>
     </form>
-    <p v-if="addStatus" :class="addStatus.type === 'success' ? 'success-text' : 'error-text'">
-      {{ addStatus.message }}
-    </p>
+    <StatusMessage :status="addStatus" />
 
-    <h2>All Courses</h2>
-    <p v-if="store.loading">Loading courses...</p>
+    <h3>All Courses</h3>
+    <StatusMessage :status="listStatus" />
+    <p v-if="store.loading" role="status">Loading courses...</p>
+    <p v-else-if="store.error && store.courses.length === 0" class="error-text" role="alert">{{ store.error }}</p>
     <p v-else-if="store.courses.length === 0" class="empty-text">No courses yet.</p>
-    <table v-else>
-      <thead>
-        <tr><th>Course ID</th><th>Course Name</th><th>Action</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="c in store.courses" :key="c.courseId">
-          <td>{{ c.courseId }}</td>
-          <td>{{ c.courseName }}</td>
-          <td><button type="button" @click="handleDelete(c.courseId)">Delete</button></td>
-        </tr>
-      </tbody>
-    </table>
+    <CourseTable v-else :courses="store.courses" @delete="handleDelete" />
   </section>
 </template>

@@ -47,3 +47,27 @@ th, td {
 @media (max-width: 480px) {
   form { max-width: 100%; }
 }
+
+/* ---------- Added: shared styling, accessibility, mobile ---------- */
+h3 { font-size: 1.05rem; margin-top: 1.75rem; }
+input:focus, select:focus, button:focus-visible, a:focus-visible {
+  outline: 3px solid #4a7dff;
+  outline-offset: 2px;
+}
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+button.danger { background: #b00020; }
+button.danger:hover { background: #8a0019; }
+.table-wrap { width: 100%; overflow-x: auto; }
+.table-wrap table { min-width: 480px; background: #fff; }
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0);
+  white-space: nowrap; border: 0;
+}
+@media (max-width: 480px) {
+  h1 { font-size: 1.25rem; }
+  button { width: 100%; }
+  td button { width: auto; }
+}

@@ -8,13 +8,16 @@ export const useEnrollmentStore = defineStore('enrollments', () => {
     const error = ref(null)
 
     async function enroll(studentId, courseId) {
-        error.value = null
         try {
+            // Check the course's current roster first so a duplicate never reaches the server
+            const current = await api.get('/enrollments', { params: { courseId } })
+            if (current.data.some((s) => s.studentId === studentId)) {
+                return { success: false, error: `This student is already enrolled in ${courseId}` }
+            }
             await api.post('/enrollments', { studentId, courseId })
             return { success: true }
         } catch (err) {
             const message = err.response?.data?.error || 'Failed to enroll student'
-            error.value = message
             return { success: false, error: message }
         }
     }
@@ -26,11 +29,17 @@ export const useEnrollmentStore = defineStore('enrollments', () => {
             const res = await api.get('/enrollments', { params: { courseId } })
             roster.value = res.data
         } catch (err) {
+            roster.value = []
             error.value = err.response?.data?.error || 'Failed to load roster'
         } finally {
             loading.value = false
         }
     }
 
-    return { roster, loading, error, enroll, fetchRoster }
+    function clearRoster() {
+        roster.value = []
+        error.value = null
+    }
+
+    return { roster, loading, error, enroll, fetchRoster, clearRoster }
 })

@@ -21,39 +21,37 @@ export const useStudentStore = defineStore('students', () => {
     }
 
     async function addStudent(student) {
-        error.value = null
+        // Check locally first so a duplicate never reaches the server
+        if (students.value.some((s) => s.studentId === student.studentId)) {
+            return { success: false, error: `A student with ID ${student.studentId} already exists` }
+        }
         try {
             const res = await api.post('/students', student)
             students.value.push(res.data)
             return { success: true }
         } catch (err) {
             const message = err.response?.data?.error || 'Failed to add student'
-            error.value = message
             return { success: false, error: message }
         }
     }
 
     async function deleteStudent(studentId) {
-        error.value = null
         try {
-            await api.delete(`/students/${studentId}`)
+            await api.delete(`/students/${encodeURIComponent(studentId)}`)
             students.value = students.value.filter((s) => s.studentId !== studentId)
             return { success: true }
         } catch (err) {
             const message = err.response?.data?.error || 'Failed to delete student'
-            error.value = message
             return { success: false, error: message }
         }
     }
 
     async function searchStudent(name) {
-        error.value = null
         try {
             const res = await api.get('/students/search', { params: { name } })
-            return { success: true, student: res.data }
+            return { success: true, students: res.data }
         } catch (err) {
             const message = err.response?.data?.error || 'Student not found'
-            error.value = message
             return { success: false, error: message }
         }
     }

@@ -1,15 +1,21 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { useStudentStore } from '../stores/students'
+import StatusMessage from '../components/StatusMessage.vue'
+import StudentTable from '../components/StudentTable.vue'
 
 const store = useStudentStore()
 
 const newStudent = reactive({ name: '', studentId: '', phone: '', zip: '' })
 const addStatus = ref(null)
+const adding = ref(false)
 
 const searchName = ref('')
-const searchResult = ref(null)
+const searchResults = ref(null)
 const searchStatus = ref(null)
+const searching = ref(false)
+
+const listStatus = ref(null)
 
 onMounted(() => {
   store.fetchStudents()
@@ -17,9 +23,21 @@ onMounted(() => {
 
 async function handleAdd() {
   addStatus.value = null
-  const result = await store.addStudent({ ...newStudent })
+  const student = {
+    name: newStudent.name.trim(),
+    studentId: newStudent.studentId.trim(),
+    phone: newStudent.phone.trim(),
+    zip: newStudent.zip.trim()
+  }
+  if (!student.name || !student.studentId || !student.phone || !student.zip) {
+    addStatus.value = { type: 'error', message: 'Please fill in name, student ID, phone, and ZIP code.' }
+    return
+  }
+  adding.value = true
+  const result = await store.addStudent(student)
+  adding.value = false
   if (result.success) {
-    addStatus.value = { type: 'success', message: 'Student added successfully.' }
+    addStatus.value = { type: 'success', message: `Student ${student.name} added successfully.` }
     newStudent.name = ''
     newStudent.studentId = ''
     newStudent.phone = ''
@@ -31,52 +49,61 @@ async function handleAdd() {
 
 async function handleSearch() {
   searchStatus.value = null
-  searchResult.value = null
-  const result = await store.searchStudent(searchName.value)
+  searchResults.value = null
+  const name = searchName.value.trim()
+  if (!name) {
+    searchStatus.value = { type: 'error', message: 'Please enter a name to search for.' }
+    return
+  }
+  searching.value = true
+  const result = await store.searchStudent(name)
+  searching.value = false
   if (result.success) {
-    searchResult.value = result.student
+    searchResults.value = result.students
+    if (result.students.length === 0) {
+      searchStatus.value = { type: 'error', message: `No student named "${name}" was found.` }
+    }
   } else {
-    searchStatus.value = result.error
+    searchStatus.value = { type: 'error', message: result.error }
   }
 }
 
 async function handleDelete(studentId) {
-  if (!confirm(`Delete student with ID ${studentId}?`)) return
-  await store.deleteStudent(studentId)
-  if (searchResult.value?.studentId === studentId) {
-    searchResult.value = null
+  if (!confirm(`Delete student with ID ${studentId}? This will also remove their enrollments.`)) return
+  listStatus.value = null
+  const result = await store.deleteStudent(studentId)
+  if (result.success) {
+    listStatus.value = { type: 'success', message: `Student ${studentId} deleted.` }
+    if (searchResults.value) {
+      searchResults.value = searchResults.value.filter((s) => s.studentId !== studentId)
+    }
+  } else {
+    listStatus.value = { type: 'error', message: result.error }
   }
 }
 </script>
 
 <template>
   <section>
-    <h1>Students</h1>
+    <h2>Students</h2>
 
-    <h2>Search for a Student</h2>
-    <form @submit.prevent="handleSearch">
+    <h3>Search for a Student</h3>
+    <form @submit.prevent="handleSearch" novalidate>
       <label for="searchName">Student Name</label>
-      <input id="searchName" v-model="searchName" type="text" required />
-      <button type="submit">Search</button>
+      <input id="searchName" v-model="searchName" type="text" autocomplete="off" />
+      <button type="submit" :disabled="searching">{{ searching ? 'Searching...' : 'Search' }}</button>
     </form>
-    <p v-if="searchStatus" class="error-text">{{ searchStatus }}</p>
-    <table v-if="searchResult">
-      <thead>
-        <tr><th>Name</th><th>ID</th><th>Phone</th><th>Zip</th><th>Action</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>{{ searchResult.name }}</td>
-          <td>{{ searchResult.studentId }}</td>
-          <td>{{ searchResult.phone }}</td>
-          <td>{{ searchResult.zip }}</td>
-          <td><button type="button" @click="handleDelete(searchResult.studentId)">Delete</button></td>
-        </tr>
-      </tbody>
-    </table>
+    <StatusMessage :status="searchStatus" />
+    <StudentTable
+      v-if="searchResults && searchResults.length > 0"
+      :students="searchResults"
+      show-delete
+      caption="Search result"
+      @delete="handleDelete"
+    />
 
-    <h2>Add a Student</h2>
-    <form @submit.prevent="handleAdd">
+    <h3>Add a Student</h3>
+    <form @submit.prevent="handleAdd" novalidate>
       <label for="addName">Name</label>
       <input id="addName" v-model="newStudent.name" type="text" required />
 
@@ -84,33 +111,26 @@ async function handleDelete(studentId) {
       <input id="addId" v-model="newStudent.studentId" type="text" required />
 
       <label for="addPhone">Phone</label>
-      <input id="addPhone" v-model="newStudent.phone" type="text" required />
+      <input id="addPhone" v-model="newStudent.phone" type="tel" required />
 
-      <label for="addZip">Zip Code</label>
-      <input id="addZip" v-model="newStudent.zip" type="text" required />
+      <label for="addZip">ZIP Code</label>
+      <input id="addZip" v-model="newStudent.zip" type="text" inputmode="numeric" required />
 
-      <button type="submit">Add Student</button>
+      <button type="submit" :disabled="adding">{{ adding ? 'Adding...' : 'Add Student' }}</button>
     </form>
-    <p v-if="addStatus" :class="addStatus.type === 'success' ? 'success-text' : 'error-text'">
-      {{ addStatus.message }}
-    </p>
+    <StatusMessage :status="addStatus" />
 
-    <h2>All Students</h2>
-    <p v-if="store.loading">Loading students...</p>
+    <h3>All Students</h3>
+    <StatusMessage :status="listStatus" />
+    <p v-if="store.loading" role="status">Loading students...</p>
+    <p v-else-if="store.error && store.students.length === 0" class="error-text" role="alert">{{ store.error }}</p>
     <p v-else-if="store.students.length === 0" class="empty-text">No students yet.</p>
-    <table v-else>
-      <thead>
-        <tr><th>Name</th><th>ID</th><th>Phone</th><th>Zip</th><th>Action</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="s in store.students" :key="s.studentId">
-          <td>{{ s.name }}</td>
-          <td>{{ s.studentId }}</td>
-          <td>{{ s.phone }}</td>
-          <td>{{ s.zip }}</td>
-          <td><button type="button" @click="handleDelete(s.studentId)">Delete</button></td>
-        </tr>
-      </tbody>
-    </table>
+    <StudentTable
+      v-else
+      :students="store.students"
+      show-delete
+      caption="All students"
+      @delete="handleDelete"
+    />
   </section>
 </template>
